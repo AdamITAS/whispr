@@ -13,18 +13,30 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
 
   // GET /api/messages?user=marco  →  ritorna tutti i messaggi di @marco
+  // GET /api/messages  →  ritorna TUTTI i messaggi (globali)
   if (req.method === 'GET') {
     const { user } = req.query
-    if (!user) return res.status(400).json({ error: 'missing user' })
 
-    const { data, error } = await supabase
-      .from('messages')
-      .select('id, text, created_at')
-      .eq('username', user.toLowerCase().trim())
-      .order('created_at', { ascending: false })
+    if (user) {
+      // Se c'è user, filtra per username
+      const { data, error } = await supabase
+        .from('messages')
+        .select('id, username, text, created_at')
+        .eq('username', user.toLowerCase().trim())
+        .order('created_at', { ascending: false })
 
-    if (error) return res.status(500).json({ error: error.message })
-    return res.json(data)
+      if (error) return res.status(500).json({ error: error.message })
+      return res.json(data)
+    } else {
+      // Se NON c'è user, restituisce TUTTI i messaggi (globali)
+      const { data, error } = await supabase
+        .from('messages')
+        .select('id, username, text, created_at')
+        .order('created_at', { ascending: false })
+
+      if (error) return res.status(500).json({ error: error.message })
+      return res.json(data)
+    }
   }
 
   // POST /api/messages  body: { username, text }  →  salva messaggio
