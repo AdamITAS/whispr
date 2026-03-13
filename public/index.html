@@ -36,6 +36,7 @@
   .msg-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--pink),var(--cyan))}
   .msg-text{font-size:.93rem;line-height:1.6;word-break:break-word}
   .msg-time{font-size:.72rem;color:#666688;margin-top:.4rem}
+  .msg-user{font-size:.8rem;color:var(--cyan);font-weight:500;margin-bottom:.5rem;font-family:'Syne',sans-serif}
   .empty{text-align:center;padding:2.5rem 1rem;color:var(--muted);font-size:.9rem;line-height:1.7}
   .section-label{font-size:.75rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.8rem;padding-left:.1rem}
   @keyframes up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
@@ -43,7 +44,12 @@
   .toast.show{opacity:1}
   .loading{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
   @keyframes spin{to{transform:rotate(360deg)}}
-  @media(max-width:480px){h1{font-size:2.2rem}}
+  .username-preview{font-size:.75rem;color:var(--muted);margin-top:.4rem;font-family:'DM Sans',sans-serif;letter-spacing:.02em}
+  .username-preview strong{color:var(--cyan);font-weight:500}
+  .global-section{width:100%;max-width:460px;margin-top:3rem;padding-top:2rem;border-top:1px solid var(--border)}
+  .globe-emoji{display:inline-block;animation:float 3s ease-in-out infinite;margin-right:.4rem}
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+  @media(max-width:480px){h1{font-size:2.2rem};.global-section{margin-top:2rem}}
 </style>
 </head>
 <body>
@@ -60,7 +66,8 @@
 
   <div class="card">
     <div class="card-title">📩 manda un messaggio anonimo</div>
-    <input id="h-to" placeholder="a chi? scrivi @username" autocomplete="off" spellcheck="false">
+    <input id="h-to" placeholder="scrivi il nome..." autocomplete="off" spellcheck="false">
+    <div class="username-preview" id="preview" style="display:none">Verrà inviato a: <strong>@<span id="preview-text"></span></strong></div>
     <textarea id="h-msg" placeholder="scrivi qui il tuo messaggio..." maxlength="280"></textarea>
     <button class="btn btn-pink" id="h-send" onclick="quickSend()" disabled>Invia in anonimo →</button>
   </div>
@@ -69,6 +76,12 @@
     <div class="card-title">🔍 leggi i messaggi di qualcuno</div>
     <input id="h-view" placeholder="cerca @username" autocomplete="off" spellcheck="false">
     <button class="btn btn-outline" onclick="goProfile()">Vedi messaggi</button>
+  </div>
+
+  <!-- GLOBAL MESSAGES SECTION -->
+  <div class="global-section">
+    <div class="section-label"><span class="globe-emoji">🌍</span>ultimi messaggi globali</div>
+    <div id="global-msgs"></div>
   </div>
 </div>
 
@@ -102,21 +115,39 @@
 <div class="toast" id="toast"></div>
 
 <script>
-  // ⬇️ Dopo il deploy su Vercel, questa riga si aggiorna automaticamente
-  // perché l'API è sullo stesso dominio. Non toccare nulla.
   const API = '/api/messages'
 
   let currentUser = ''
 
   const norm = u => u.replace(/^@+/, '').toLowerCase().trim()
 
-  // abilita/disabilita tasto invia home
+  // abilita/disabilita tasto invia home + gestisci @ automatico
   function checkHome() {
     const a = document.getElementById('h-to').value.trim()
     const b = document.getElementById('h-msg').value.trim()
     document.getElementById('h-send').disabled = !(a && b)
+    
+    // Aggiorna preview
+    const preview = document.getElementById('preview')
+    const previewText = document.getElementById('preview-text')
+    if (a) {
+      previewText.textContent = norm(a)
+      preview.style.display = 'block'
+    } else {
+      preview.style.display = 'none'
+    }
   }
-  document.getElementById('h-to').oninput = checkHome
+  
+  document.getElementById('h-to').oninput = function() {
+    let val = this.value
+    if (val.includes('@')) {
+      val = val.replace(/@/g, '')
+      this.value = val
+      showToast('⚠️ L\'@ viene aggiunto automaticamente')
+    }
+    checkHome()
+  }
+  
   document.getElementById('h-msg').oninput = checkHome
   document.getElementById('h-view').addEventListener('keydown', e => { if (e.key === 'Enter') goProfile() })
   document.getElementById('h-to').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('h-msg').focus() })
@@ -132,7 +163,9 @@
     if (ok) {
       document.getElementById('h-to').value = ''
       document.getElementById('h-msg').value = ''
+      document.getElementById('preview').style.display = 'none'
       showToast('Messaggio inviato! ✦')
+      loadGlobalMessages() // Ricarica messaggi globali
     }
     btn.innerHTML = 'Invia in anonimo →'
     btn.disabled = true
@@ -159,6 +192,7 @@
   function home() {
     document.getElementById('p-home').classList.remove('hidden')
     document.getElementById('p-profile').classList.add('hidden')
+    loadGlobalMessages()
   }
 
   function pChar() {
@@ -226,12 +260,44 @@
     }
   }
 
+  async function loadGlobalMessages() {
+    const container = document.getElementById('global-msgs')
+    container.innerHTML = '<div class="empty"><span class="loading"></span></div>'
+    try {
+      const res = await fetch(API)
+      const msgs = await res.json()
+      
+      // Prendi solo gli ultimi 5 messaggi
+      const latestMsgs = msgs.slice(-5).reverse()
+      
+      if (!latestMsgs.length) {
+        container.innerHTML = '<div class="empty">Nessun messaggio ancora.</div>'
+        return
+      }
+      
+      container.innerHTML = latestMsgs.map(m => {
+        const d = new Date(m.created_at)
+        const t = d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }) + ' · ' + d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+        const safe = m.text.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        const username = m.username || 'anonimo'
+        return `<div class="msg-card"><div class="msg-user">→ @${username}</div><div class="msg-text">${safe}</div><div class="msg-time">${t}</div></div>`
+      }).join('')
+    } catch (e) {
+      container.innerHTML = '<div class="empty">Errore caricamento messaggi</div>'
+    }
+  }
+
   function showToast(msg) {
     const t = document.getElementById('toast')
     t.textContent = msg
     t.classList.add('show')
     setTimeout(() => t.classList.remove('show'), 2500)
   }
+
+  // Carica messaggi globali al caricamento della pagina
+  window.addEventListener('load', loadGlobalMessages)
+  // Ricarica ogni 10 secondi
+  setInterval(loadGlobalMessages, 10000)
 </script>
 </body>
 </html>
