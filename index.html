@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>whispr — messaggi anonimi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{--pink:#ff2d78;--cyan:#00f0ff;--purple:#9b5de5;--bg:#0c0c12;--card:#13131a;--border:rgba(255,255,255,0.09);--text:#f0f0f8;--muted:#8888aa}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100dvh}
+  .glow{position:fixed;border-radius:50%;filter:blur(90px);opacity:.13;pointer-events:none;z-index:0}
+  #g1{width:380px;height:380px;background:var(--pink);top:-100px;right:-100px}
+  #g2{width:300px;height:300px;background:var(--cyan);bottom:-60px;left:-80px}
+  .page{display:flex;flex-direction:column;align-items:center;padding:2rem 1rem 4rem;min-height:100dvh;position:relative;z-index:1}
+  .hidden{display:none!important}
+  h1{font-family:'Syne',sans-serif;font-size:2.8rem;font-weight:800;background:linear-gradient(135deg,var(--pink),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:.25rem}
+  .sub{color:var(--muted);font-size:.9rem;margin-bottom:2.5rem;text-align:center}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:1.4rem;width:100%;max-width:460px;margin-bottom:1rem}
+  .card-title{font-family:'Syne',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:1rem}
+  input,textarea{width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:12px;padding:.8rem 1rem;font-size:1rem;font-family:'DM Sans',sans-serif;color:var(--text);outline:none;transition:border-color .2s;-webkit-appearance:none}
+  input:focus,textarea:focus{border-color:var(--pink)}
+  textarea{resize:none;min-height:85px;margin-top:.7rem}
+  .btn{width:100%;padding:.85rem;border-radius:12px;border:none;font-family:'Syne',sans-serif;font-weight:700;font-size:.95rem;cursor:pointer;margin-top:.75rem;transition:opacity .2s,transform .1s;letter-spacing:.02em}
+  .btn:active{transform:scale(.98)}
+  .btn-pink{background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff}
+  .btn-pink:hover{opacity:.88}
+  .btn-outline{background:transparent;border:1px solid var(--border);color:var(--text)}
+  .btn-outline:hover{border-color:var(--cyan);background:rgba(0,240,255,.05)}
+  .btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+  .back{background:transparent;border:1px solid var(--border);color:var(--muted);padding:.4rem .9rem;border-radius:60px;font-size:.82rem;cursor:pointer;font-family:'DM Sans',sans-serif;margin-bottom:1.5rem;align-self:flex-start;transition:border-color .2s}
+  .back:hover{border-color:var(--pink);color:var(--text)}
+  .avatar{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:1.2rem;font-weight:800;color:#fff;flex-shrink:0}
+  .msg-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1rem 1.1rem;margin-bottom:.65rem;position:relative;overflow:hidden;animation:up .3s ease}
+  .msg-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--pink),var(--cyan))}
+  .msg-text{font-size:.93rem;line-height:1.6;word-break:break-word}
+  .msg-time{font-size:.72rem;color:#666688;margin-top:.4rem}
+  .empty{text-align:center;padding:2.5rem 1rem;color:var(--muted);font-size:.9rem;line-height:1.7}
+  .section-label{font-size:.75rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.8rem;padding-left:.1rem}
+  @keyframes up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  .toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#1e1e2e;border:1px solid var(--pink);padding:.65rem 1.3rem;border-radius:60px;font-size:.85rem;z-index:99;opacity:0;transition:opacity .3s;white-space:nowrap;pointer-events:none}
+  .toast.show{opacity:1}
+  .loading{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @media(max-width:480px){h1{font-size:2.2rem}}
+</style>
+</head>
+<body>
+
+<div class="glow" id="g1"></div>
+<div class="glow" id="g2"></div>
+
+<!-- HOME -->
+<div class="page" id="p-home">
+  <div style="text-align:center;margin-bottom:2rem;padding-top:2rem">
+    <h1>whispr</h1>
+    <div class="sub">scrivi quello che pensi davvero — in anonimo ✦</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📩 manda un messaggio anonimo</div>
+    <input id="h-to" placeholder="a chi? scrivi @username" autocomplete="off" spellcheck="false">
+    <textarea id="h-msg" placeholder="scrivi qui il tuo messaggio..." maxlength="280"></textarea>
+    <button class="btn btn-pink" id="h-send" onclick="quickSend()" disabled>Invia in anonimo →</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🔍 leggi i messaggi di qualcuno</div>
+    <input id="h-view" placeholder="cerca @username" autocomplete="off" spellcheck="false">
+    <button class="btn btn-outline" onclick="goProfile()">Vedi messaggi</button>
+  </div>
+</div>
+
+<!-- PROFILE -->
+<div class="page hidden" id="p-profile">
+  <button class="back" onclick="home()">← indietro</button>
+
+  <div class="card" style="display:flex;align-items:center;gap:1rem;max-width:460px">
+    <div class="avatar" id="av"></div>
+    <div>
+      <div style="font-family:'Syne',sans-serif;font-size:1.25rem;font-weight:700" id="pname"></div>
+      <div style="font-size:.82rem;color:var(--muted)" id="pcount">caricamento...</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">✍️ scrivi in anonimo</div>
+    <textarea id="p-msg" placeholder="Il tuo messaggio..." maxlength="280" oninput="pChar()"></textarea>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.6rem">
+      <span style="font-size:.75rem;color:var(--muted)"><span id="pc">0</span>/280</span>
+      <button class="btn btn-pink" id="p-send" onclick="pSend()" disabled style="width:auto;padding:.6rem 1.4rem;margin:0;font-size:.88rem">Invia →</button>
+    </div>
+  </div>
+
+  <div style="width:100%;max-width:460px">
+    <div class="section-label">messaggi ricevuti</div>
+    <div id="mlist"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ⬇️ Dopo il deploy su Vercel, questa riga si aggiorna automaticamente
+  // perché l'API è sullo stesso dominio. Non toccare nulla.
+  const API = '/api/messages'
+
+  let currentUser = ''
+
+  const norm = u => u.replace(/^@+/, '').toLowerCase().trim()
+
+  // abilita/disabilita tasto invia home
+  function checkHome() {
+    const a = document.getElementById('h-to').value.trim()
+    const b = document.getElementById('h-msg').value.trim()
+    document.getElementById('h-send').disabled = !(a && b)
+  }
+  document.getElementById('h-to').oninput = checkHome
+  document.getElementById('h-msg').oninput = checkHome
+  document.getElementById('h-view').addEventListener('keydown', e => { if (e.key === 'Enter') goProfile() })
+  document.getElementById('h-to').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('h-msg').focus() })
+
+  async function quickSend() {
+    const username = norm(document.getElementById('h-to').value)
+    const text = document.getElementById('h-msg').value.trim()
+    if (!username || !text) return
+    const btn = document.getElementById('h-send')
+    btn.disabled = true
+    btn.innerHTML = '<span class="loading"></span>invio...'
+    const ok = await sendMessage(username, text)
+    if (ok) {
+      document.getElementById('h-to').value = ''
+      document.getElementById('h-msg').value = ''
+      showToast('Messaggio inviato! ✦')
+    }
+    btn.innerHTML = 'Invia in anonimo →'
+    btn.disabled = true
+  }
+
+  function goProfile() {
+    const raw = document.getElementById('h-view').value.trim()
+    if (!raw) { showToast('Inserisci un username!'); return }
+    openProfile(norm(raw))
+  }
+
+  function openProfile(user) {
+    currentUser = user
+    document.getElementById('p-home').classList.add('hidden')
+    document.getElementById('p-profile').classList.remove('hidden')
+    document.getElementById('av').textContent = user.slice(0, 2).toUpperCase()
+    document.getElementById('pname').textContent = '@' + user
+    document.getElementById('p-msg').value = ''
+    document.getElementById('pc').textContent = '0'
+    document.getElementById('p-send').disabled = true
+    loadMessages()
+  }
+
+  function home() {
+    document.getElementById('p-home').classList.remove('hidden')
+    document.getElementById('p-profile').classList.add('hidden')
+  }
+
+  function pChar() {
+    const v = document.getElementById('p-msg').value
+    document.getElementById('pc').textContent = v.length
+    document.getElementById('p-send').disabled = v.trim().length < 1
+  }
+
+  async function pSend() {
+    const text = document.getElementById('p-msg').value.trim()
+    if (!text) return
+    const btn = document.getElementById('p-send')
+    btn.disabled = true
+    btn.innerHTML = '<span class="loading"></span>'
+    const ok = await sendMessage(currentUser, text)
+    if (ok) {
+      document.getElementById('p-msg').value = ''
+      document.getElementById('pc').textContent = '0'
+      showToast('Inviato! ✦')
+      await loadMessages()
+    }
+    btn.textContent = 'Invia →'
+    btn.disabled = false
+  }
+
+  async function sendMessage(username, text) {
+    try {
+      const res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, text })
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        showToast('Errore: ' + (err.error || 'riprova'))
+        return false
+      }
+      return true
+    } catch (e) {
+      showToast('Errore di connessione')
+      return false
+    }
+  }
+
+  async function loadMessages() {
+    document.getElementById('pcount').textContent = 'caricamento...'
+    document.getElementById('mlist').innerHTML = '<div class="empty"><span class="loading"></span></div>'
+    try {
+      const res = await fetch(API + '?user=' + encodeURIComponent(currentUser))
+      const msgs = await res.json()
+      const count = msgs.length
+      document.getElementById('pcount').textContent = count === 0 ? 'ancora nessun messaggio' : count + ' messaggio' + (count === 1 ? '' : 'i')
+      if (!msgs.length) {
+        document.getElementById('mlist').innerHTML = '<div class="empty">Nessun messaggio ancora.<br>Sii il primo a scrivere! ✦</div>'
+        return
+      }
+      document.getElementById('mlist').innerHTML = msgs.map(m => {
+        const d = new Date(m.created_at)
+        const t = d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }) + ' · ' + d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+        const safe = m.text.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        return `<div class="msg-card"><div class="msg-text">${safe}</div><div class="msg-time">${t} · anonimo</div></div>`
+      }).join('')
+    } catch (e) {
+      document.getElementById('mlist').innerHTML = '<div class="empty">Errore caricamento messaggi</div>'
+    }
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast')
+    t.textContent = msg
+    t.classList.add('show')
+    setTimeout(() => t.classList.remove('show'), 2500)
+  }
+</script>
+</body>
+</html>
